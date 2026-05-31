@@ -1,15 +1,17 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useMemo, useEffect } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { useFilterStore } from '@/lib/store'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { RiskGauge } from '@/components/ui/RiskGauge'
 import { formatDate, formatNumber, timeAgo, getStatusColor } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
+import toast from 'react-hot-toast'
 import {
   Search, Filter, Download, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
-  MoreHorizontal, SlidersHorizontal, X, Save,
+  MoreHorizontal, SlidersHorizontal, X, Save, Eye, Skull, Heart, Trash2, Copy,
 } from 'lucide-react'
 
 const PAGE_SIZES = [25, 50, 100, 250]
@@ -20,6 +22,7 @@ const SENSITIVITIES = ['public', 'internal', 'confidential', 'restricted']
 
 export default function InventoryPage() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [search, setSearch] = useState('')
@@ -28,8 +31,18 @@ export default function InventoryPage() {
   const [sortOrder, setSortOrder] = useState('desc')
   const [showFilters, setShowFilters] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [menuOpen, setMenuOpen] = useState<string | null>(null)
 
   const [filters, setFilters] = useState<Record<string, string>>({})
+
+  // Sync global search from TopBar into local state
+  const globalSearch = useFilterStore((s) => s.searchQuery)
+  const setGlobalSearch = useFilterStore((s) => s.setSearchQuery)
+
+  useEffect(() => {
+    setSearch(globalSearch)
+    searchTimer(globalSearch)
+  }, [globalSearch])
 
   // Debounce search
   const searchTimer = useMemo(() => {
@@ -56,6 +69,40 @@ export default function InventoryPage() {
     queryKey: ['inventory', queryParams],
     queryFn: () => api.getInventory(queryParams),
   })
+
+  const quarantineMutation = useMutation({
+    mutationFn: (id: string) => api.quarantineAPI(id),
+    onSuccess: () => {
+      toast.success('API quarantined')
+      queryClient.invalidateQueries({ queryKey: ['inventory'] })
+    },
+    onError: () => toast.error('Failed to quarantine API'),
+  })
+
+  const rescueMutation = useMutation({
+    mutationFn: (id: string) => api.rescueAPI(id),
+    onSuccess: () => {
+      toast.success('API rescued')
+      queryClient.invalidateQueries({ queryKey: ['inventory'] })
+    },
+    onError: () => toast.error('Failed to rescue API'),
+  })
+
+  const decommissionMutation = useMutation({
+    mutationFn: (id: string) => api.decommissionAPI(id),
+    onSuccess: () => {
+      toast.success('API decommissioned')
+      queryClient.invalidateQueries({ queryKey: ['inventory'] })
+    },
+    onError: () => toast.error('Failed to decommission API'),
+  })
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = () => setMenuOpen(null)
+    document.addEventListener('click', close)
+    return () => document.removeEventListener('click', close)
+  }, [menuOpen])
 
   const handleSort = (col: string) => {
     if (sortBy === col) {
@@ -154,7 +201,7 @@ export default function InventoryPage() {
         />
         {search && (
           <button
-            onClick={() => { setSearch(''); setDebouncedSearch('') }}
+            onClick={() => { setSearch(''); setDebouncedSearch(''); setGlobalSearch('') }}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
           >
             <X size={16} />
@@ -345,11 +392,55 @@ export default function InventoryPage() {
                   <td className="px-4 py-3 text-sm text-gray-500">
                     {formatNumber(api.traffic_7d || 0)}
                   </td>
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                    <button className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400">
-                      <MoreHorizontal size={16} />
-                    </button>
-                  </td>
+                   <td className="px-4 py-3 relative" onClick={(e) => e.stopPropagation()}>
+                     <button
+                       onClick={() => setMenuOpen(menuOpen === api.id ? null : api.id)}
+                       className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400"
+                     >
+                       <MoreHorizontal size={16} />
+                     </button>
+                     {menuOpen === api.id && (
+                       <div className="absolute right-2 top-full mt-1 w-44 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 py-1">
+                         <button
+                           onClick={() => { router.push(`/inventory/${api.id}`); setMenuOpen(null) }}
+                           className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                         >
+                           <Eye size={14} /> View Details
+                         </button>
+                         <button
+                           onClick={() => { navigator.clipboard.writeText(api.endpoint_path); toast.success('Copied'); setMenuOpen(null) }}
+                           className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                         >
+                           <Copy size={14} /> Copy Endpoint
+                         </button>
+                         <hr className="border-gray-100 dark:border-gray-700" />
+                         {api.status === 'zombie' && (
+                           <button
+                             onClick={() => { quarantineMutation.mutate(api.id); setMenuOpen(null) }}
+                             className="flex items-center gap-2 w-full px-3 py-2 text-sm text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/30"
+                           >
+                             <Skull size={14} /> Quarantine
+                           </button>
+                         )}
+                         {(api.status === 'zombie' || api.status === 'orphaned') && (
+                           <button
+                             onClick={() => { rescueMutation.mutate(api.id); setMenuOpen(null) }}
+                             className="flex items-center gap-2 w-full px-3 py-2 text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30"
+                           >
+                             <Heart size={14} /> Rescue
+                           </button>
+                         )}
+                         {api.status !== 'deprecated' && (
+                           <button
+                             onClick={() => { decommissionMutation.mutate(api.id); setMenuOpen(null) }}
+                             className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                           >
+                             <Trash2 size={14} /> Decommission
+                           </button>
+                         )}
+                       </div>
+                     )}
+                   </td>
                 </tr>
               ))}
             </tbody>

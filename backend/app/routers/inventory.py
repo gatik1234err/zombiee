@@ -8,7 +8,7 @@ import uuid
 
 from app.database import get_db
 from app.models import API, SecurityFinding, TrafficMetric, DecommissionWorkflow, APIDependency
-from app.schemas import APIInventoryItem, APIDetail, PaginatedResponse, APIResponse, SecurityFindingItem
+from app.schemas import APIInventoryItem, APIDetail, PaginatedResponse, APIResponse, SecurityFindingItem, TrafficMetricItem, DecommissionWorkflowItem
 
 router = APIRouter(prefix="/api/v1/inventory", tags=["inventory"])
 
@@ -178,8 +178,42 @@ async def get_api_detail(api_id: str, db: AsyncSession = Depends(get_db)):
             resolved_at=sf.resolved_at,
             resolved_by=sf.resolved_by,
         ) for sf in (api.security_findings or [])],
-        traffic_metrics=api.traffic_metrics or [],
-        decommission_workflow=api.decommission_workflow,
+        traffic_metrics=[TrafficMetricItem(
+            time=tm.time,
+            api_id=str(tm.api_id),
+            request_count=tm.request_count,
+            error_4xx_count=tm.error_4xx_count,
+            error_5xx_count=tm.error_5xx_count,
+            avg_response_time_ms=tm.avg_response_time_ms,
+            p95_response_time_ms=tm.p95_response_time_ms,
+            p99_response_time_ms=tm.p99_response_time_ms,
+            unique_ips=tm.unique_ips,
+        ) for tm in (api.traffic_metrics or [])],
+        decommission_workflow=(
+            DecommissionWorkflowItem(
+                id=str(api.decommission_workflow.id),
+                api_id=str(api.decommission_workflow.api_id),
+                current_stage=api.decommission_workflow.current_stage,
+                detected_at=api.decommission_workflow.detected_at,
+                quarantined_at=api.decommission_workflow.quarantined_at,
+                quarantined_by=api.decommission_workflow.quarantined_by,
+                approved_at=api.decommission_workflow.approved_at,
+                approved_by=api.decommission_workflow.approved_by,
+                decommissioned_at=api.decommission_workflow.decommissioned_at,
+                decommissioned_by=api.decommission_workflow.decommissioned_by,
+                rescued_at=api.decommission_workflow.rescued_at,
+                rescued_by=api.decommission_workflow.rescued_by,
+                rescue_reason=api.decommission_workflow.rescue_reason,
+                grace_period_days=api.decommission_workflow.grace_period_days,
+                auto_decommission_date=api.decommission_workflow.auto_decommission_date,
+                pr_url=api.decommission_workflow.pr_url,
+                pr_status=api.decommission_workflow.pr_status,
+                notification_sent_at=api.decommission_workflow.notification_sent_at,
+                notification_acknowledged_at=api.decommission_workflow.notification_acknowledged_at,
+                safety_catch_triggered=api.decommission_workflow.safety_catch_triggered,
+                safety_catch_triggered_at=api.decommission_workflow.safety_catch_triggered_at,
+            ) if api.decommission_workflow else None
+        ),
     )
 
 

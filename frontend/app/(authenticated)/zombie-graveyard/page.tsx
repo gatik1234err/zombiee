@@ -25,6 +25,7 @@ const STAGE_COLORS: Record<string, string> = {
 export default function ZombieGraveyardPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
+  const [dismissed, setDismissed] = useState(false)
 
   const { data: zombiesData, isLoading } = useQuery({
     queryKey: ['zombies'],
@@ -39,6 +40,15 @@ export default function ZombieGraveyardPage() {
 
   const zombies = zombiesData?.data || []
   const shadows = shadowsData?.data || []
+
+  const rescueMutation = useMutation({
+    mutationFn: (id: string) => api.rescueAPI(id),
+    onSuccess: () => {
+      toast.success('API rescued successfully')
+      queryClient.invalidateQueries({ queryKey: ['zombies'] })
+    },
+    onError: () => toast.error('Failed to rescue API'),
+  })
 
   const groupedByStage = STAGES.map((stage) => ({
     stage,
@@ -71,6 +81,7 @@ export default function ZombieGraveyardPage() {
       </div>
 
       {/* Safety Catch Alert */}
+      {!dismissed && (
       <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-card p-4">
         <div className="flex items-start gap-3">
           <div className="p-2 bg-red-100 dark:bg-red-900/50 rounded-lg">
@@ -85,9 +96,31 @@ export default function ZombieGraveyardPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <button className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700">Rescue</button>
-                <button className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700">Investigate</button>
-                <button className="px-3 py-1.5 text-xs font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300">Dismiss</button>
+                <button
+                  onClick={() => {
+                    const quarantined = zombies.find((z: any) => z.current_stage === 'quarantined')
+                    if (quarantined) rescueMutation.mutate(quarantined.api_id)
+                    else toast.error('No quarantined API found')
+                  }}
+                  className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  Rescue
+                </button>
+                <button
+                  onClick={() => {
+                    const quarantined = zombies.find((z: any) => z.current_stage === 'quarantined')
+                    if (quarantined) router.push(`/inventory/${quarantined.api_id}`)
+                  }}
+                  className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Investigate
+                </button>
+                <button
+                  onClick={() => setDismissed(true)}
+                  className="px-3 py-1.5 text-xs font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300"
+                >
+                  Dismiss
+                </button>
               </div>
             </div>
             <div className="mt-3 h-16">
@@ -103,6 +136,7 @@ export default function ZombieGraveyardPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Shadow API Alert */}
       {shadows.length > 0 && (

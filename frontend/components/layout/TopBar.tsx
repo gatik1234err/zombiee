@@ -1,12 +1,11 @@
 'use client'
 
 import { Search, Bell, Moon, Sun, User } from 'lucide-react'
-import { useUIStore } from '@/lib/store'
-import { useState } from 'react'
+import { useUIStore, useFilterStore } from '@/lib/store'
 
 export function TopBar() {
   const { darkMode, toggleDarkMode } = useUIStore()
-  const [searchQuery, setSearchQuery] = useState('')
+  const { searchQuery, setSearchQuery } = useFilterStore()
 
   return (
     <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-6">

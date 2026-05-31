@@ -44,13 +44,17 @@ export const useAuthStore = create<AuthState>((set) => ({
 
 interface FilterState {
   filters: Record<string, string>
+  searchQuery: string
   setFilter: (key: string, value: string) => void
+  setSearchQuery: (q: string) => void
   clearFilters: () => void
 }
 
 export const useFilterStore = create<FilterState>((set) => ({
   filters: {},
+  searchQuery: '',
   setFilter: (key, value) =>
     set((state) => ({ filters: { ...state.filters, [key]: value } })),
-  clearFilters: () => set({ filters: {} }),
+  setSearchQuery: (q) => set({ searchQuery: q }),
+  clearFilters: () => set({ filters: {}, searchQuery: '' }),
 }))
